@@ -50,9 +50,14 @@ export function LocationPicker({ open, title = 'Seleccionar ubicación', initial
     const center = initialLat != null && initialLng != null ? { lat: initialLat, lng: initialLng } : DEFAULT_CENTER
     const map = new window.google.maps.Map(mapRef.current, {
       center,
-      zoom: initialLat != null ? 17 : 12,
-      mapTypeId: 'satellite',
+      zoom: initialLat != null ? 17 : 14,
+      mapTypeId: 'roadmap',
       mapTypeControl: true,
+      mapTypeControlOptions: {
+        style: window.google.maps.MapTypeControlStyle.HORIZONTAL_BAR,
+        position: window.google.maps.ControlPosition.TOP_RIGHT,
+        mapTypeIds: ['roadmap', 'satellite', 'hybrid', 'terrain'],
+      },
       streetViewControl: false,
       fullscreenControl: true,
     })
@@ -150,7 +155,7 @@ export function LocationPicker({ open, title = 'Seleccionar ubicación', initial
       <div className="space-y-3">
         <div className="flex items-center justify-between gap-2">
           <p className="text-xs text-slate-500">
-            Haz clic o arrastra el pin. Mapa satélite para ubicar las oficinas con mayor precisión.
+            Haz clic o arrastra el pin. Usa los botones para cambiar entre mapa, satélite o híbrido.
           </p>
           <button type="button" className="btn-secondary whitespace-nowrap" onClick={useMyLocation} disabled={locating}>
             <Crosshair className="h-4 w-4" />
