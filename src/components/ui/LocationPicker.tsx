@@ -35,11 +35,24 @@ export function LocationPicker({ open, title = 'Seleccionar ubicación', initial
   const loadedRef = useRef<boolean>(false)
 
   const loadScript = useCallback(() => {
-    if (loadedRef.current || window.google?.maps) return Promise.resolve()
+    if (window.google?.maps?.places) {
+      loadedRef.current = true
+      return Promise.resolve()
+    }
+
     loadedRef.current = true
     return new Promise<void>((resolve, reject) => {
+      const existing = Array.from(document.scripts).find((s) => s.src.includes('maps.googleapis.com/maps/api/js'))
+      if (existing && window.google?.maps && !window.google?.maps.places) {
+        existing.remove()
+        loadedRef.current = false
+        if (window.google) {
+          delete (window as any).google
+        }
+      }
+
       const script = document.createElement('script')
-      script.src = 'https://maps.googleapis.com/maps/api/js?key=' + API_KEY + '&libraries=places'
+      script.src = 'https://maps.googleapis.com/maps/api/js?key=' + API_KEY + '&libraries=places&loading=async'
       script.async = true
       script.defer = true
       script.onload = () => resolve()
@@ -88,6 +101,7 @@ export function LocationPicker({ open, title = 'Seleccionar ubicación', initial
     if (searchInputRef.current && window.google.maps.places) {
       const autocomplete = new window.google.maps.places.Autocomplete(searchInputRef.current, {
         fields: ['geometry', 'name', 'formatted_address'],
+        componentRestrictions: { country: ['ec'] },
       })
       autocomplete.bindTo('bounds', map)
       autocompleteRef.current = autocomplete
@@ -102,6 +116,8 @@ export function LocationPicker({ open, title = 'Seleccionar ubicación', initial
         setLng(location.lng())
         setSearchQuery(place.formatted_address || place.name || '')
       })
+    } else if (searchInputRef.current) {
+      setGeoError('No se pudo cargar la búsqueda de direcciones (Places API).')
     }
   }, [initialLat, initialLng])
 
