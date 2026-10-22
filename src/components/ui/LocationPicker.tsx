@@ -66,8 +66,8 @@ export function LocationPicker({ open, title = 'Seleccionar ubicación', initial
     const center = initialLat != null && initialLng != null ? { lat: initialLat, lng: initialLng } : DEFAULT_CENTER
     const map = new window.google.maps.Map(mapRef.current, {
       center,
-      zoom: initialLat != null ? 17 : 14,
-      mapTypeId: 'roadmap',
+      zoom: initialLat != null ? 18 : 15,
+      mapTypeId: 'hybrid',
       mapTypeControl: true,
       mapTypeControlOptions: {
         style: window.google.maps.MapTypeControlStyle.HORIZONTAL_BAR,
@@ -201,7 +201,7 @@ export function LocationPicker({ open, title = 'Seleccionar ubicación', initial
       <div className="space-y-3">
         <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
           <p className="text-xs text-slate-500">
-            Busca un sitio, haz clic o arrastra el pin. Usa los controles para cambiar vista.
+            Busca un sitio, haz clic o arrastra el pin. Vista híbrida con calles y nombres.
           </p>
           <button type="button" className="btn-secondary whitespace-nowrap" onClick={useMyLocation} disabled={locating}>
             <Crosshair className="h-4 w-4" />
