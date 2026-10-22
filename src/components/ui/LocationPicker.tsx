@@ -1,6 +1,6 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { Check, Crosshair } from 'lucide-react'
+import { Check, Crosshair, Search, X } from 'lucide-react'
 import { Modal } from './Modal'
 
 const DEFAULT_CENTER = { lat: -0.18, lng: -78.47 }
@@ -25,10 +25,13 @@ export function LocationPicker({ open, title = 'Seleccionar ubicación', initial
   const mapRef = useRef<HTMLDivElement | null>(null)
   const googleMapRef = useRef<any>(null)
   const markerRef = useRef<any>(null)
+  const searchInputRef = useRef<HTMLInputElement | null>(null)
+  const autocompleteRef = useRef<any>(null)
   const [lat, setLat] = useState<number | null>(initialLat)
   const [lng, setLng] = useState<number | null>(initialLng)
   const [locating, setLocating] = useState(false)
   const [geoError, setGeoError] = useState<string | null>(null)
+  const [searchQuery, setSearchQuery] = useState('')
   const loadedRef = useRef<boolean>(false)
 
   const loadScript = useCallback(() => {
@@ -60,9 +63,10 @@ export function LocationPicker({ open, title = 'Seleccionar ubicación', initial
       },
       streetViewControl: false,
       fullscreenControl: true,
+      zoomControl: true,
     })
     googleMapRef.current = map
-    const marker = new window.google.maps.Marker({ position: center, map, draggable: true })
+    const marker = new window.google.maps.Marker({ position: center, map, draggable: true, animation: window.google.maps.Animation.DROP })
     markerRef.current = marker
     marker.addListener('dragend', () => {
       const pos = marker.getPosition()
@@ -81,6 +85,24 @@ export function LocationPicker({ open, title = 'Seleccionar ubicación', initial
       setLat(initialLat)
       setLng(initialLng)
     }
+    if (searchInputRef.current && window.google.maps.places) {
+      const autocomplete = new window.google.maps.places.Autocomplete(searchInputRef.current, {
+        fields: ['geometry', 'name', 'formatted_address'],
+      })
+      autocomplete.bindTo('bounds', map)
+      autocompleteRef.current = autocomplete
+      autocomplete.addListener('place_changed', () => {
+        const place = autocomplete.getPlace()
+        if (!place.geometry || !place.geometry.location) return
+        const location = place.geometry.location
+        map.setCenter(location)
+        map.setZoom(18)
+        marker.setPosition(location)
+        setLat(location.lat())
+        setLng(location.lng())
+        setSearchQuery(place.formatted_address || place.name || '')
+      })
+    }
   }, [initialLat, initialLng])
 
   useEffect(() => {
@@ -89,10 +111,15 @@ export function LocationPicker({ open, title = 'Seleccionar ubicación', initial
     setLocating(false)
     setLat(initialLat)
     setLng(initialLng)
+    setSearchQuery('')
     loadScript()
       .then(initMap)
       .catch(() => setGeoError('No se pudo cargar Google Maps'))
-    const timer = window.setTimeout(() => window.google?.maps?.event?.trigger(googleMapRef.current, 'resize'), 300)
+    const timer = window.setTimeout(() => {
+      if (googleMapRef.current && window.google?.maps?.event) {
+        window.google.maps.event.trigger(googleMapRef.current, 'resize')
+      }
+    }, 300)
     return () => window.clearTimeout(timer)
   }, [open, initialLat, initialLng, loadScript, initMap])
 
@@ -113,6 +140,7 @@ export function LocationPicker({ open, title = 'Seleccionar ubicación', initial
         googleMapRef.current?.setZoom(18)
         setLat(la)
         setLng(ln)
+        setSearchQuery('')
         setLocating(false)
       },
       (err) => {
@@ -126,6 +154,8 @@ export function LocationPicker({ open, title = 'Seleccionar ubicación', initial
   const handleClear = () => {
     setLat(null)
     setLng(null)
+    setSearchQuery('')
+    if (searchInputRef.current) searchInputRef.current.value = ''
   }
 
   const handleConfirm = () => {
@@ -153,14 +183,38 @@ export function LocationPicker({ open, title = 'Seleccionar ubicación', initial
       }
     >
       <div className="space-y-3">
-        <div className="flex items-center justify-between gap-2">
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
           <p className="text-xs text-slate-500">
-            Haz clic o arrastra el pin. Usa los botones para cambiar entre mapa, satélite o híbrido.
+            Busca un sitio, haz clic o arrastra el pin. Usa los controles para cambiar vista.
           </p>
           <button type="button" className="btn-secondary whitespace-nowrap" onClick={useMyLocation} disabled={locating}>
             <Crosshair className="h-4 w-4" />
             {locating ? 'Localizando…' : 'Usar mi ubicación'}
           </button>
+        </div>
+
+        <div className="relative">
+          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+          <input
+            ref={searchInputRef}
+            type="text"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            placeholder="Buscar dirección, calle, local, etc."
+            className="w-full rounded-lg border border-slate-200 py-2 pl-9 pr-9 text-sm focus:border-primary-500 focus:outline-none focus:ring-1 focus:ring-primary-500"
+          />
+          {searchQuery && (
+            <button
+              type="button"
+              className="absolute right-2 top-1/2 -translate-y-1/2 rounded-full p-1 text-slate-400 hover:text-slate-600"
+              onClick={() => {
+                setSearchQuery('')
+                if (searchInputRef.current) searchInputRef.current.value = ''
+              }}
+            >
+              <X className="h-4 w-4" />
+            </button>
+          )}
         </div>
 
         {geoError && (
