@@ -55,3 +55,7 @@ tsconfig.node.tsbuildinfo
 Thumbs.db
 ehthumbs.db
 Desktop.ini
+
+# Wrangler
+.wrangler/
+wrangler.jsonc
