@@ -262,7 +262,7 @@ export default function Employees() {
         p_position: editForm.job_title.trim() || null,
       })
       if (transferErr) {
-        setEditError(Empleado actualizado, pero no se pudo asignar a la empresa: )
+        setEditError('Empleado actualizado, pero no se pudo asignar a la empresa:' )
         setSaving(false)
         return
       }
