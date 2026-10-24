@@ -7,7 +7,7 @@ import { describeDeleteError } from '@/lib/utils'
 import { PageHeader } from '@/components/PageHeader'
 import { Modal } from '@/components/ui/Modal'
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog'
-import type { Department, Employee, EmployeeVacation, Office, Role } from '@/types'
+import type { Company, Department, Employee, EmployeeVacation, Office, Role } from '@/types'
 
 const roles: Role[] = ['ADMINISTRADOR', 'RECURSOS_HUMANOS', 'SUPERVISOR', 'EMPLEADO']
 
@@ -23,6 +23,8 @@ interface CreateForm {
   job_title: string
   department_id: string
   office_id: string
+  company_id: string
+  effective_date: string
 }
 
 const emptyCreate: CreateForm = {
@@ -37,6 +39,8 @@ const emptyCreate: CreateForm = {
   job_title: '',
   department_id: '',
   office_id: '',
+  company_id: '',
+  effective_date: new Date().toISOString().slice(0, 10),
 }
 
 // Traduce errores de autenticacion de la Edge Function a un mensaje claro para el admin.
@@ -55,12 +59,15 @@ interface EditForm {
   department_id: string
   office_id: string
   is_active: boolean
+  company_id: string
+  effective_date: string
 }
 
 export default function Employees() {
   const [employees, setEmployees] = useState<Employee[]>([])
   const [offices, setOffices] = useState<Office[]>([])
   const [departments, setDepartments] = useState<Department[]>([])
+  const [companies, setCompanies] = useState<Company[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
@@ -114,12 +121,14 @@ export default function Employees() {
       setEmployees((data as Employee[]) ?? [])
     }
 
-    const [officesRes, departmentsRes] = await Promise.all([
+    const [officesRes, departmentsRes, companiesRes] = await Promise.all([
       supabase.from('offices').select('*').order('name'),
       supabase.from('departments').select('*').order('name'),
+      supabase.from('companies').select('*').order('name'),
     ])
     setOffices((officesRes.data as Office[]) ?? [])
     setDepartments((departmentsRes.data as Department[]) ?? [])
+    setCompanies((companiesRes.data as Company[]) ?? [])
     setLoading(false)
   }, [])
 
@@ -175,6 +184,22 @@ export default function Employees() {
       return
     }
 
+    if (createForm.company_id && data?.ok && data?.employee?.id) {
+      const { error: transferErr } = await supabase.rpc('transfer_employee', {
+        p_employee_id: data.employee.id,
+        p_target_company_id: createForm.company_id,
+        p_effective_date: createForm.effective_date || new Date().toISOString().slice(0, 10),
+        p_reason: 'Asignación inicial desde alta de empleado',
+        p_position: createForm.job_title.trim() || null,
+      })
+      if (transferErr) {
+        setCreateError(`Empleado creado, pero no se pudo asignar a la empresa: ${transferErr.message}`)
+        setSaving(false)
+        await load()
+        return
+      }
+    }
+
     setSaving(false)
     setCreateOpen(false)
     setCreateForm(emptyCreate)
@@ -190,6 +215,8 @@ export default function Employees() {
       department_id: emp.department_id ?? '',
       office_id: emp.office_id ?? '',
       is_active: emp.is_active,
+      company_id: '',
+      effective_date: new Date().toISOString().slice(0, 10),
     })
     setEditError(null)
   }
@@ -224,6 +251,21 @@ export default function Employees() {
       setEditError(`Empleado actualizado, pero el perfil falló: ${profileUpdate.error.message}`)
       setSaving(false)
       return
+    }
+
+    if (editForm.company_id) {
+      const { error: transferErr } = await supabase.rpc('transfer_employee', {
+        p_employee_id: editing.id,
+        p_target_company_id: editForm.company_id,
+        p_effective_date: editForm.effective_date,
+        p_reason: 'Asignación/traslado desde panel de empleados',
+        p_position: editForm.job_title.trim() || null,
+      })
+      if (transferErr) {
+        setEditError(Empleado actualizado, pero no se pudo asignar a la empresa: )
+        setSaving(false)
+        return
+      }
     }
 
     setSaving(false)
@@ -684,7 +726,7 @@ export default function Employees() {
         }
       />
 
-      <div className="card overflow-hidden p-0">
+      <div className="card overflow-x-auto p-0">
         {loading ? (
           <div className="p-8 text-center text-sm text-slate-500">Cargando…</div>
         ) : error ? (
@@ -707,7 +749,7 @@ export default function Employees() {
                   <th className="table-th">Departamento</th>
                   <th className="table-th">Rol</th>
                   <th className="table-th">Estado</th>
-                  <th className="table-th" />
+                  <th className="table-th sticky right-0 bg-slate-50" />
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 bg-white">
@@ -736,7 +778,7 @@ export default function Employees() {
                         {emp.is_active ? 'Activo' : 'Inactivo'}
                       </span>
                     </td>
-                    <td className="table-td">
+                    <td className="table-td sticky right-0 bg-white">
                       <div className="flex items-center justify-end gap-1">
                         <button
                           type="button"
@@ -918,6 +960,21 @@ export default function Employees() {
             <label className="label" htmlFor="e-job">Cargo</label>
             <input id="e-job" className="input" value={createForm.job_title} onChange={(e) => setCreateForm({ ...createForm, job_title: e.target.value })} />
           </div>
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <div>
+              <label className="label" htmlFor="e-company">Empresa</label>
+              <select id="e-company" className="input" value={createForm.company_id} onChange={(e) => setCreateForm({ ...createForm, company_id: e.target.value })}>
+                <option value="">Sin asignar</option>
+                {companies.map((c) => (
+                  <option key={c.id} value={c.id}>{c.name}</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="label" htmlFor="e-effective">Fecha efectiva</label>
+              <input id="e-effective" type="date" className="input" value={createForm.effective_date} onChange={(e) => setCreateForm({ ...createForm, effective_date: e.target.value })} />
+            </div>
+          </div>
         </form>
       </Modal>
 
@@ -987,6 +1044,22 @@ export default function Employees() {
             <div>
               <label className="label" htmlFor="ed-job">Cargo</label>
               <input id="ed-job" className="input" value={editForm.job_title} onChange={(e) => setEditForm({ ...editForm, job_title: e.target.value })} />
+            </div>
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+              <div>
+                <label className="label" htmlFor="ed-company">Empresa (asignar/trasladar)</label>
+                <select id="ed-company" className="input" value={editForm.company_id} onChange={(e) => setEditForm({ ...editForm, company_id: e.target.value })}>
+                  <option value="">Sin cambios</option>
+                  {companies.map((c) => (
+                    <option key={c.id} value={c.id}>{c.name}</option>
+                  ))}
+                </select>
+                <p className="mt-1 text-xs text-slate-400">Usa Traslados para mover entre empresas con control completo.</p>
+              </div>
+              <div>
+                <label className="label" htmlFor="ed-effective">Fecha efectiva</label>
+                <input id="ed-effective" type="date" className="input" value={editForm.effective_date} onChange={(e) => setEditForm({ ...editForm, effective_date: e.target.value })} />
+              </div>
             </div>
             <label className="flex items-center gap-2 text-sm text-slate-700">
               <input type="checkbox" checked={editForm.is_active} onChange={(e) => setEditForm({ ...editForm, is_active: e.target.checked })} />
@@ -1227,3 +1300,4 @@ export default function Employees() {
     </div>
   )
 }
+
