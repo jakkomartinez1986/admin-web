@@ -4,8 +4,10 @@ import { supabase } from '@/lib/supabase'
 import { describeDeleteError } from '@/lib/utils'
 import { isValidEcuadorianRuc } from '@/lib/ruc'
 import { PageHeader } from '@/components/PageHeader'
+import { Pagination } from '@/components/ui/Pagination'
 import { Modal } from '@/components/ui/Modal'
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog'
+import { usePagination } from '@/hooks/usePagination'
 import type { Company } from '@/types'
 
 interface Form {
@@ -33,6 +35,7 @@ export default function Companies() {
   const [deleting, setDeleting] = useState<Company | null>(null)
   const [deleteBusy, setDeleteBusy] = useState(false)
   const [deleteError, setDeleteError] = useState<string | null>(null)
+  const pagination = usePagination(items)
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -126,7 +129,7 @@ export default function Companies() {
                </tr>
              </thead>
              <tbody className='divide-y divide-slate-100 bg-white'>
-               {items.map(c => (
+               {pagination.pageItems.map(c => (
                  <tr key={c.id}>
                    <td className='table-td font-mono text-xs'>{c.tax_id}</td>
                    <td className='table-td'>{c.name}</td>
@@ -147,6 +150,19 @@ export default function Companies() {
              </tbody>
            </table>
          </div>}
+        {!loading && !error && items.length > 0 && (
+          <Pagination
+            page={pagination.page}
+            pageSize={pagination.pageSize}
+            total={pagination.total}
+            totalPages={pagination.totalPages}
+            start={pagination.start}
+            end={pagination.end}
+            onPageChange={pagination.setPage}
+            onPageSizeChange={pagination.setPageSize}
+            noun="empresas"
+          />
+        )}
       </div>
       <Modal open={modal} title={editing ? 'Editar empresa' : 'Nueva empresa'} onClose={() => setModal(false)} footer={<><button className='btn-secondary' onClick={() => setModal(false)} disabled={saving}>Cancelar</button><button form='company-form' className='btn-primary' disabled={saving}>{saving ? 'Guardando…' : 'Guardar'}</button></>}>
         <form id='company-form' onSubmit={submit} className='space-y-4'>

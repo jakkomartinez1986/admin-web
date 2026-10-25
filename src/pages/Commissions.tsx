@@ -2,8 +2,10 @@ import { useCallback, useEffect, useState, type FormEvent } from 'react'
 import { Plus, Trash2 } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { PageHeader } from '@/components/PageHeader'
+import { Pagination } from '@/components/ui/Pagination'
 import { Modal } from '@/components/ui/Modal'
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog'
+import { usePagination } from '@/hooks/usePagination'
 import type { Commission, CommissionApprovalStatus, Employee, Role } from '@/types'
 import { describeDeleteError, formatDate } from '@/lib/utils'
 
@@ -28,7 +30,7 @@ export default function Commissions() {
   const [deleting, setDeleting] = useState<Commission | null>(null)
   const [deleteBusy, setDeleteBusy] = useState(false)
   const [deleteError, setDeleteError] = useState<string | null>(null)
-
+  const pagination = usePagination(commissions)
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -273,7 +275,7 @@ export default function Commissions() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 bg-white">
-                {commissions.map((c) => (
+                {pagination.pageItems.map((c) => (
                   <tr key={c.id}>
                     <td className="table-td">{c.name}</td>
                     <td className="table-td">{c.detail ?? '—'}</td>
@@ -309,6 +311,19 @@ export default function Commissions() {
               </tbody>
             </table>
           </div>
+        )}
+        {!loading && !error && commissions.length > 0 && (
+          <Pagination
+            page={pagination.page}
+            pageSize={pagination.pageSize}
+            total={pagination.total}
+            totalPages={pagination.totalPages}
+            start={pagination.start}
+            end={pagination.end}
+            onPageChange={pagination.setPage}
+            onPageSizeChange={pagination.setPageSize}
+            noun="comisiones"
+          />
         )}
       </div>
 

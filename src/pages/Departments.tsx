@@ -3,8 +3,10 @@ import { Pencil, Plus, Power, PowerOff, Trash2 } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { describeDeleteError } from '@/lib/utils'
 import { PageHeader } from '@/components/PageHeader'
+import { Pagination } from '@/components/ui/Pagination'
 import { Modal } from '@/components/ui/Modal'
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog'
+import { usePagination } from '@/hooks/usePagination'
 import type { Department, Office } from '@/types'
 
 interface Form {
@@ -29,6 +31,7 @@ export default function Departments() {
   const [deleting, setDeleting] = useState<Department | null>(null)
   const [deleteBusy, setDeleteBusy] = useState(false)
   const [deleteError, setDeleteError] = useState<string | null>(null)
+  const pagination = usePagination(items)
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -113,7 +116,7 @@ export default function Departments() {
                </tr>
              </thead>
              <tbody className='divide-y divide-slate-100 bg-white'>
-               {items.map(d => (
+               {pagination.pageItems.map(d => (
                  <tr key={d.id}>
                    <td className='table-td font-mono text-xs'>{d.code}</td>
                    <td className='table-td'>{d.name}</td>
@@ -133,6 +136,19 @@ export default function Departments() {
              </tbody>
            </table>
          </div>}
+        {!loading && !error && items.length > 0 && (
+          <Pagination
+            page={pagination.page}
+            pageSize={pagination.pageSize}
+            total={pagination.total}
+            totalPages={pagination.totalPages}
+            start={pagination.start}
+            end={pagination.end}
+            onPageChange={pagination.setPage}
+            onPageSizeChange={pagination.setPageSize}
+            noun="departamentos"
+          />
+        )}
       </div>
       <Modal open={modal} title={editing ? 'Editar departamento' : 'Nuevo departamento'} onClose={() => setModal(false)} footer={<><button className='btn-secondary' onClick={() => setModal(false)} disabled={saving}>Cancelar</button><button form='dep-form' className='btn-primary' disabled={saving}>{saving ? 'Guardando…' : 'Guardar'}</button></>}>
         <form id='dep-form' onSubmit={submit} className='space-y-4'>

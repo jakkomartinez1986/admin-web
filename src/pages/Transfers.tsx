@@ -2,7 +2,9 @@ import { useCallback, useEffect, useMemo, useState, type FormEvent } from 'react
 import { ArrowRightLeft, Search } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { PageHeader } from '@/components/PageHeader'
+import { Pagination } from '@/components/ui/Pagination'
 import { Modal } from '@/components/ui/Modal'
+import { usePagination } from '@/hooks/usePagination'
 import type { Company, CompanyAssignment } from '@/types'
 
 interface Row extends CompanyAssignment {
@@ -64,6 +66,8 @@ export default function Transfers() {
       return name.includes(q) || code.includes(q) || id.includes(q) || company.includes(q)
     })
   }, [rows, search])
+
+  const pagination = usePagination(filtered, 10, search)
 
   const openTransfer = (r: Row) => {
     setSelected(r)
@@ -133,7 +137,7 @@ export default function Transfers() {
                </tr>
              </thead>
              <tbody className='divide-y divide-slate-100 bg-white'>
-               {filtered.map(r => (
+               {pagination.pageItems.map(r => (
                  <tr key={r.id}>
                    <td className='table-td'>
                      <div className='font-medium text-slate-900'>{fmtName(r)}</div>
@@ -158,6 +162,19 @@ export default function Transfers() {
              </tbody>
            </table>
          </div>}
+        {!loading && !error && filtered.length > 0 && (
+          <Pagination
+            page={pagination.page}
+            pageSize={pagination.pageSize}
+            total={pagination.total}
+            totalPages={pagination.totalPages}
+            start={pagination.start}
+            end={pagination.end}
+            onPageChange={pagination.setPage}
+            onPageSizeChange={pagination.setPageSize}
+            noun="asignaciones"
+          />
+        )}
       </div>
       <Modal
         open={modal}

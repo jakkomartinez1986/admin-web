@@ -2,7 +2,9 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Plus, Trash2, CalendarOff } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { PageHeader } from '@/components/PageHeader'
+import { Pagination } from '@/components/ui/Pagination'
 import { Modal } from '@/components/ui/Modal'
+import { usePagination } from '@/hooks/usePagination'
 import type { Employee, EmployeeVacation } from '@/types'
 import { formatDate } from '@/lib/utils'
 
@@ -84,6 +86,8 @@ export default function Vacations() {
       return full.includes(q) || code.includes(q) || office.includes(q)
     })
   }, [vacations, search])
+
+  const pagination = usePagination(filteredVacations, 10, search)
 
   const selectedEmployee = employees.find((e) => e.id === employeeId)
 
@@ -188,7 +192,7 @@ export default function Vacations() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 bg-white">
-                {filteredVacations.map((v) => {
+                {pagination.pageItems.map((v) => {
                   const st = statusOf(v)
                   const p = v.employees?.profiles
                   return (
@@ -221,6 +225,19 @@ export default function Vacations() {
               </tbody>
             </table>
           </div>
+        )}
+        {!loading && !error && filteredVacations.length > 0 && (
+          <Pagination
+            page={pagination.page}
+            pageSize={pagination.pageSize}
+            total={pagination.total}
+            totalPages={pagination.totalPages}
+            start={pagination.start}
+            end={pagination.end}
+            onPageChange={pagination.setPage}
+            onPageSizeChange={pagination.setPageSize}
+            noun="vacaciones"
+          />
         )}
       </div>
 

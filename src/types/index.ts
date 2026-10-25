@@ -58,6 +58,14 @@ export interface Employee {
   profiles?: ProfileEmbed | null
   departments?: Department | null
   offices?: Office | null
+  company_employee_assignments?: {
+    id: string
+    company_id: string
+    status: CompanyAssignmentStatus
+    start_date: string
+    end_date: string | null
+    companies?: Pick<Company, 'id' | 'name' | 'commercial_name' | 'tax_id'> | null
+  }[] | null
 }
 
 export type VacationStatus = 'PENDIENTE' | 'APROBADA' | 'RECHAZADA'
@@ -96,6 +104,9 @@ export interface AttendanceEvent {
   accuracy_m: number | null
   operation_uuid: string
   device_id: string | null
+  device_shared?: boolean | null
+  device_accounts_count?: number | null
+  device_review_reason?: string | null
   validation_status: ValidationStatus
   rejection_reason: string | null
   created_at: string

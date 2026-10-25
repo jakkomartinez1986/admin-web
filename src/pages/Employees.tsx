@@ -7,6 +7,8 @@ import { describeDeleteError } from '@/lib/utils'
 import { PageHeader } from '@/components/PageHeader'
 import { Modal } from '@/components/ui/Modal'
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog'
+import { Pagination } from '@/components/ui/Pagination'
+import { usePagination } from '@/hooks/usePagination'
 import type { Company, Department, Employee, EmployeeVacation, Office, Role } from '@/types'
 
 const roles: Role[] = ['ADMINISTRADOR', 'RECURSOS_HUMANOS', 'SUPERVISOR', 'EMPLEADO']
@@ -43,6 +45,18 @@ const emptyCreate: CreateForm = {
   effective_date: new Date().toISOString().slice(0, 10),
 }
 
+function currentAssignment(employee: Employee | null) {
+  if (!employee) return null
+  const assignments = employee.company_employee_assignments ?? []
+  return assignments.find((assignment) => assignment.status === 'ACTIVA')
+    ?? assignments.find((assignment) => assignment.status === 'FUTURA')
+    ?? null
+}
+
+function formatCompany(employee: Employee): string {
+  return currentAssignment(employee)?.companies?.name ?? '—'
+}
+
 // Traduce errores de autenticacion de la Edge Function a un mensaje claro para el admin.
 // Cuando la sesion del navegador expira, la EF devuelve 401 con { error: 'Invalid token' }.
 function translateAuthError(message: string, status?: number): string {
@@ -65,6 +79,7 @@ interface EditForm {
 
 export default function Employees() {
   const [employees, setEmployees] = useState<Employee[]>([])
+  const pagination = usePagination(employees, 10)
   const [offices, setOffices] = useState<Office[]>([])
   const [departments, setDepartments] = useState<Department[]>([])
   const [companies, setCompanies] = useState<Company[]>([])
@@ -111,7 +126,7 @@ export default function Employees() {
     const { data, error: loadError } = await supabase
       .from('employees')
       .select(
-        '*, profiles(first_name, last_name, email, national_id, phone, role), departments!employees_department_id_fkey(name), offices(name, code)',
+        '*, profiles(first_name, last_name, email, national_id, phone, role), departments!employees_department_id_fkey(name), offices(name, code), company_employee_assignments(id, company_id, status, start_date, end_date, companies(id, name, commercial_name, tax_id))',
       )
       .order('last_name', { referencedTable: 'profiles', ascending: true })
 
@@ -207,6 +222,7 @@ export default function Employees() {
   }
 
   const openEdit = (emp: Employee) => {
+    const assignment = currentAssignment(emp)
     setEditing(emp)
     setEditForm({
       role: emp.profiles?.role ?? 'EMPLEADO',
@@ -215,7 +231,7 @@ export default function Employees() {
       department_id: emp.department_id ?? '',
       office_id: emp.office_id ?? '',
       is_active: emp.is_active,
-      company_id: '',
+      company_id: assignment?.company_id ?? '',
       effective_date: new Date().toISOString().slice(0, 10),
     })
     setEditError(null)
@@ -253,16 +269,25 @@ export default function Employees() {
       return
     }
 
-    if (editForm.company_id) {
+    const assignment = currentAssignment(editing)
+    const companyChanged = editForm.company_id !== (assignment?.company_id ?? '')
+    if (companyChanged && editForm.company_id) {
+      if (!editForm.effective_date) {
+        setEditError('Indica la fecha efectiva del cambio de empresa.')
+        setSaving(false)
+        return
+      }
       const { error: transferErr } = await supabase.rpc('transfer_employee', {
         p_employee_id: editing.id,
         p_target_company_id: editForm.company_id,
         p_effective_date: editForm.effective_date,
-        p_reason: 'Asignación/traslado desde panel de empleados',
+        p_reason: assignment
+          ? 'Traslado desde panel de empleados'
+          : 'Asignación inicial desde panel de empleados',
         p_position: editForm.job_title.trim() || null,
       })
       if (transferErr) {
-        setEditError('Empleado actualizado, pero no se pudo asignar a la empresa:' )
+        setEditError(`No se pudo asignar la empresa: ${transferErr.message}`)
         setSaving(false)
         return
       }
@@ -688,6 +713,8 @@ export default function Employees() {
     if (fileInputRef.current) fileInputRef.current.value = ''
   }
 
+  const editingAssignment = currentAssignment(editing)
+
   return (
     <div>
       <PageHeader
@@ -726,7 +753,7 @@ export default function Employees() {
         }
       />
 
-      <div className="card overflow-x-auto p-0">
+      <div className="card p-0">
         {loading ? (
           <div className="p-8 text-center text-sm text-slate-500">Cargando…</div>
         ) : error ? (
@@ -742,6 +769,7 @@ export default function Employees() {
                 <tr>
                   <th className="table-th">Código</th>
                   <th className="table-th">Nombre</th>
+                  <th className="table-th">Empresa</th>
                   <th className="table-th">Cédula</th>
                   <th className="table-th">Correo</th>
                   <th className="table-th">Teléfono</th>
@@ -753,12 +781,13 @@ export default function Employees() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 bg-white">
-                {employees.map((emp) => (
+                {pagination.pageItems.map((emp) => (
                   <tr key={emp.id}>
                     <td className="table-td font-mono text-xs">{emp.employee_code}</td>
                     <td className="table-td">
                       {emp.profiles?.first_name} {emp.profiles?.last_name}
                     </td>
+                    <td className="table-td">{formatCompany(emp)}</td>
                     <td className="table-td font-mono text-xs">{emp.profiles?.national_id ?? '—'}</td>
                     <td className="table-td">{emp.profiles?.email}</td>
                     <td className="table-td">
@@ -839,6 +868,19 @@ export default function Employees() {
               </tbody>
             </table>
           </div>
+        )}
+        {!loading && !error && employees.length > 0 && (
+          <Pagination
+            page={pagination.page}
+            pageSize={pagination.pageSize}
+            total={pagination.total}
+            totalPages={pagination.totalPages}
+            start={pagination.start}
+            end={pagination.end}
+            onPageChange={pagination.setPage}
+            onPageSizeChange={pagination.setPageSize}
+            noun="empleados"
+          />
         )}
       </div>
 
@@ -1045,20 +1087,44 @@ export default function Employees() {
               <label className="label" htmlFor="ed-job">Cargo</label>
               <input id="ed-job" className="input" value={editForm.job_title} onChange={(e) => setEditForm({ ...editForm, job_title: e.target.value })} />
             </div>
+            <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-700">
+              <p className="font-medium">Empresa actual</p>
+              <p className="mt-0.5 text-slate-600">
+                {editingAssignment?.companies?.name ?? 'Sin empresa asignada'}
+                {editingAssignment?.start_date ? ` · desde ${editingAssignment.start_date}` : ''}
+              </p>
+              {editingAssignment?.companies?.tax_id && (
+                <p className="text-xs text-slate-400">RUC {editingAssignment.companies.tax_id}</p>
+              )}
+            </div>
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <div>
-                <label className="label" htmlFor="ed-company">Empresa (asignar/trasladar)</label>
+                <label className="label" htmlFor="ed-company">Empresa</label>
                 <select id="ed-company" className="input" value={editForm.company_id} onChange={(e) => setEditForm({ ...editForm, company_id: e.target.value })}>
-                  <option value="">Sin cambios</option>
+                  {!editingAssignment && <option value="">Sin asignar</option>}
                   {companies.map((c) => (
-                    <option key={c.id} value={c.id}>{c.name}</option>
+                    <option key={c.id} value={c.id}>
+                      {c.name}{c.is_active ? '' : ' (inactiva)'}
+                    </option>
                   ))}
                 </select>
-                <p className="mt-1 text-xs text-slate-400">Usa Traslados para mover entre empresas con control completo.</p>
+                <p className="mt-1 text-xs text-slate-400">
+                  Si eliges otra empresa se registra un traslado y se cierra la asignación vigente.
+                </p>
               </div>
               <div>
-                <label className="label" htmlFor="ed-effective">Fecha efectiva</label>
-                <input id="ed-effective" type="date" className="input" value={editForm.effective_date} onChange={(e) => setEditForm({ ...editForm, effective_date: e.target.value })} />
+                <label className="label" htmlFor="ed-effective">Fecha efectiva del cambio</label>
+                <input
+                  id="ed-effective"
+                  type="date"
+                  className="input"
+                  value={editForm.effective_date}
+                  onChange={(e) => setEditForm({ ...editForm, effective_date: e.target.value })}
+                  disabled={editForm.company_id === (editingAssignment?.company_id ?? '')}
+                />
+                <p className="mt-1 text-xs text-slate-400">
+                  Solo se usa cuando la empresa seleccionada es distinta a la actual.
+                </p>
               </div>
             </div>
             <label className="flex items-center gap-2 text-sm text-slate-700">
