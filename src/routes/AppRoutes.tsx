@@ -5,6 +5,7 @@ import { ProtectedRoute } from '@/components/ProtectedRoute'
 import Login from '@/pages/Login'
 import Dashboard from '@/pages/Dashboard'
 import Employees from '@/pages/Employees'
+import Users from '@/pages/Users'
 import Offices from '@/pages/Offices'
 import Departments from '@/pages/Departments'
 import Commissions from '@/pages/Commissions'
@@ -13,6 +14,8 @@ import Transfers from '@/pages/Transfers'
 import Vacations from '@/pages/Vacations'
 import Attendance from '@/pages/Attendance'
 import History from '@/pages/History'
+import Devices from '@/pages/Devices'
+import Security from '@/pages/Security'
 import Profile from '@/pages/Profile'
 import NotFound from '@/pages/NotFound'
 
@@ -30,6 +33,7 @@ export function AppRoutes({ session }: { session: Session | null }) {
         <Route path="/" element={<Dashboard />} />
         <Route path="/asistencia" element={<Attendance />} />
         <Route path="/empleados" element={<Employees />} />
+        <Route path="/usuarios" element={<Users />} />
         <Route path="/oficinas" element={<Offices />} />
         <Route path="/departamentos" element={<Departments />} />
         <Route path="/comisiones" element={<Commissions />} />
@@ -37,6 +41,8 @@ export function AppRoutes({ session }: { session: Session | null }) {
         <Route path="/traslados" element={<Transfers />} />
         <Route path="/vacaciones" element={<Vacations />} />
         <Route path="/historial" element={<History />} />
+        <Route path="/dispositivos" element={<Devices />} />
+        <Route path="/seguridad" element={<Security />} />
         <Route path="/perfil" element={<Profile />} />
       </Route>
       <Route path="*" element={<NotFound />} />

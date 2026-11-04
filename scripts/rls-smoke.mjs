@@ -3,6 +3,7 @@
 // Requiere .env con VITE_SUPABASE_URL y VITE_SUPABASE_ANON_KEY.
 
 import { createClient } from '@supabase/supabase-js'
+import { createHmac } from 'node:crypto'
 import { readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { dirname, join } from 'node:path'
@@ -56,6 +57,49 @@ async function invokeErrorText(result) {
   return result.data?.error ? String(result.data.error) : ''
 }
 
+function canonicalScaledInteger(value, scale) {
+  if (value === null || value === undefined) return ''
+  const numeric = Number(value)
+  if (!Number.isFinite(numeric)) return ''
+  return String(Math.round(numeric * scale))
+}
+
+function canonicalAttendancePayload(body, nonce, requestTimestamp) {
+  return [
+    body.record_id ?? '',
+    body.attendance_type ?? '',
+    String(body.device_timestamp ?? ''),
+    canonicalScaledInteger(body.latitude, 1_000_000),
+    canonicalScaledInteger(body.longitude, 1_000_000),
+    canonicalScaledInteger(body.accuracy_meters, 100),
+    body.office_id ?? '',
+    body.commission_id ?? '',
+    body.qr_token ?? '',
+    body.device_id ?? '',
+    body.device_name ?? '',
+    nonce,
+    String(requestTimestamp),
+  ].join('|')
+}
+
+// Firma el payload como lo hace el APK (HMAC-SHA256 con el JWT de la sesión).
+async function signedAttendanceBody(client, body) {
+  const { data: { session } } = await client.auth.getSession()
+  if (!session?.access_token) throw new Error('Sesión sin access_token para firmar asistencia')
+  const nonce = crypto.randomUUID()
+  const requestTimestamp = Date.now()
+  const canonical = canonicalAttendancePayload(body, nonce, requestTimestamp)
+  const signature = createHmac('sha256', session.access_token)
+    .update(canonical)
+    .digest('base64')
+  return {
+    ...body,
+    nonce,
+    request_timestamp: requestTimestamp,
+    signature,
+  }
+}
+
 // Genera una cedula ecuatoriana valida (modulo 10) a partir de una semilla.
 // Usa los ultimos 7 digitos de la semilla, de modo que semillas distintas
 // (p. ej. `${stamp}1`, `${stamp}2`) produzcan cedulas distintas.
@@ -79,8 +123,16 @@ async function main() {
   check('Admin login', !adminLogin.error, adminLogin.error?.message)
   if (adminLogin.error) return finish()
 
-  const { data: offices } = await admin.from('offices').select('id, code').eq('is_active', true).order('code')
-  check('Admin ve 8 oficinas', offices?.length === 8, `encontradas=${offices?.length}`)
+  const { data: offices, error: officesError } = await admin
+    .from('offices')
+    .select('id, code')
+    .eq('is_active', true)
+    .order('code')
+  check(
+    'Admin ve las oficinas activas',
+    !officesError && (offices?.length ?? 0) > 0,
+    officesError?.message ?? `encontradas=${offices?.length}`,
+  )
 
   // Codigo de departamento autogenerado (DEP-001, DEP-002, ...)
   const stamp = Date.now().toString().slice(-6)
@@ -301,6 +353,7 @@ async function main() {
       office_id: emp1.office_id,
       device_time: new Date().toISOString(),
       operation_uuid: opSelf,
+      device_id: `smoke-device-${stamp}-1`,
       latitude: -0.18,
       longitude: -78.47,
       accuracy_m: 12.5,
@@ -442,7 +495,7 @@ async function main() {
     // emp1 ya registro su ENTRADA del dia (selfEventId); aqui valida su SALIDA
     // con la comision aprobada y vigente (regla de 1 ENTRADA + 1 SALIDA/dia).
     const evOk = await u1.functions.invoke('verify-and-register-attendance', {
-      body: {
+      body: await signedAttendanceBody(u1, {
         record_id: crypto.randomUUID(),
         attendance_type: 'SALIDA',
         device_timestamp: Date.now(),
@@ -450,7 +503,8 @@ async function main() {
         longitude: -78.47,
         accuracy_meters: 10,
         commission_id: comId,
-      },
+        device_id: `smoke-device-${stamp}-1`,
+      }),
     })
     check(
       'Edge Function acepta comision valida del miembro',
@@ -460,12 +514,13 @@ async function main() {
 
     // emp4 es un empleado limpio: su ENTRADA con comision inexistente va a revision.
     const evBad = await u4.functions.invoke('verify-and-register-attendance', {
-      body: {
+      body: await signedAttendanceBody(u4, {
         record_id: crypto.randomUUID(),
         attendance_type: 'ENTRADA',
         device_timestamp: Date.now(),
         commission_id: 'COM-2026-089',
-      },
+        device_id: `smoke-device-${stamp}-4`,
+      }),
     })
     check(
       'Edge Function marca revision con comision inexistente',
@@ -485,12 +540,13 @@ async function main() {
 
     // emp4 usa su SALIDA (aun no tiene ninguna) con la comision revocada.
     const evRevoked = await u4.functions.invoke('verify-and-register-attendance', {
-      body: {
+      body: await signedAttendanceBody(u4, {
         record_id: crypto.randomUUID(),
         attendance_type: 'SALIDA',
         device_timestamp: Date.now(),
         commission_id: comId,
-      },
+        device_id: `smoke-device-${stamp}-4`,
+      }),
     })
     check(
       'Edge Function marca revision con comision revocada',

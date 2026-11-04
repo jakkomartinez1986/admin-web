@@ -104,9 +104,15 @@ export interface AttendanceEvent {
   accuracy_m: number | null
   operation_uuid: string
   device_id: string | null
+  device_name?: string | null
   device_shared?: boolean | null
   device_accounts_count?: number | null
   device_review_reason?: string | null
+  request_nonce?: string | null
+  payload_signature?: string | null
+  device_clock_skew_seconds?: number | null
+  distance_to_office_m?: number | null
+  security_flags?: string[] | null
   validation_status: ValidationStatus
   rejection_reason: string | null
   created_at: string
