@@ -5,6 +5,8 @@ import { PageHeader } from '@/components/PageHeader'
 import { Modal } from '@/components/ui/Modal'
 import { Pagination } from '@/components/ui/Pagination'
 import { usePagination } from '@/hooks/usePagination'
+import { useSort } from '@/hooks/useSort'
+import { SortableHeader } from '@/components/ui/SortableHeader'
 import type { Role } from '@/types'
 
 const roles: Role[] = ['ADMINISTRADOR', 'RECURSOS_HUMANOS', 'SUPERVISOR', 'EMPLEADO']
@@ -37,6 +39,11 @@ interface UserProfileRow {
       companies?: { name: string } | null
     }[] | null
   } | null
+}
+
+const sortAccessors = {
+  name: (user: UserProfileRow) => `${user.last_name} ${user.first_name}`,
+  code: (user: UserProfileRow) => user.employees?.employee_code ?? '',
 }
 
 function currentCompany(user: UserProfileRow) {
@@ -120,7 +127,8 @@ export default function Users() {
     })
   }, [search, roleFilter, users])
 
-  const pagination = usePagination(filtered, 25, `${search}|${roleFilter}`)
+  const { sorted, sortKey, sortDirection, toggleSort } = useSort(filtered, sortAccessors, 'name')
+  const pagination = usePagination(sorted, 25, `${search}|${roleFilter}|${sortKey}|${sortDirection}`)
 
   const openRoleModal = (user: UserProfileRow) => {
     setEditing(user)
@@ -258,9 +266,9 @@ export default function Users() {
               <table className="min-w-full divide-y divide-slate-200">
                 <thead className="bg-slate-50">
                   <tr>
-                    <th className="table-th">Usuario</th>
+                    <SortableHeader label="Usuario" column="name" sortKey={sortKey} direction={sortDirection} onSort={toggleSort} />
                     <th className="table-th">Cédula</th>
-                    <th className="table-th">Código</th>
+                    <SortableHeader label="Código" column="code" sortKey={sortKey} direction={sortDirection} onSort={toggleSort} />
                     <th className="table-th">Empresa / Oficina</th>
                     <th className="table-th">Rol</th>
                     <th className="table-th">Estado</th>

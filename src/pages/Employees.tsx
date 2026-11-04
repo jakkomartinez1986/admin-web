@@ -9,9 +9,16 @@ import { Modal } from '@/components/ui/Modal'
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog'
 import { Pagination } from '@/components/ui/Pagination'
 import { usePagination } from '@/hooks/usePagination'
+import { useSort } from '@/hooks/useSort'
+import { SortableHeader } from '@/components/ui/SortableHeader'
 import type { Company, Department, Employee, EmployeeVacation, Office, Role } from '@/types'
 
 const roles: Role[] = ['ADMINISTRADOR', 'RECURSOS_HUMANOS', 'SUPERVISOR', 'EMPLEADO']
+
+const sortAccessors = {
+  code: (emp: Employee) => emp.employee_code,
+  name: (emp: Employee) => `${emp.profiles?.last_name ?? ''} ${emp.profiles?.first_name ?? ''}`,
+}
 
 interface CreateForm {
   email: string
@@ -79,7 +86,8 @@ interface EditForm {
 
 export default function Employees() {
   const [employees, setEmployees] = useState<Employee[]>([])
-  const pagination = usePagination(employees, 10)
+  const { sorted, sortKey, sortDirection, toggleSort } = useSort(employees, sortAccessors, 'name')
+  const pagination = usePagination(sorted, 10, `${sortKey}|${sortDirection}`)
   const [offices, setOffices] = useState<Office[]>([])
   const [departments, setDepartments] = useState<Department[]>([])
   const [companies, setCompanies] = useState<Company[]>([])
@@ -767,8 +775,8 @@ export default function Employees() {
             <table className="min-w-full divide-y divide-slate-200">
               <thead className="bg-slate-50">
                 <tr>
-                  <th className="table-th">Código</th>
-                  <th className="table-th">Nombre</th>
+                  <SortableHeader label="Código" column="code" sortKey={sortKey} direction={sortDirection} onSort={toggleSort} />
+                  <SortableHeader label="Nombre" column="name" sortKey={sortKey} direction={sortDirection} onSort={toggleSort} />
                   <th className="table-th">Empresa</th>
                   <th className="table-th">Cédula</th>
                   <th className="table-th">Correo</th>

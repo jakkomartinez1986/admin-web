@@ -7,7 +7,14 @@ import { Pagination } from '@/components/ui/Pagination'
 import { Modal } from '@/components/ui/Modal'
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog'
 import { usePagination } from '@/hooks/usePagination'
+import { useSort } from '@/hooks/useSort'
+import { SortableHeader } from '@/components/ui/SortableHeader'
 import type { Department, Office } from '@/types'
+
+const sortAccessors = {
+  code: (d: Department) => d.code,
+  name: (d: Department) => d.name,
+}
 
 interface Form {
   code: string
@@ -31,7 +38,8 @@ export default function Departments() {
   const [deleting, setDeleting] = useState<Department | null>(null)
   const [deleteBusy, setDeleteBusy] = useState(false)
   const [deleteError, setDeleteError] = useState<string | null>(null)
-  const pagination = usePagination(items)
+  const { sorted, sortKey, sortDirection, toggleSort } = useSort(items, sortAccessors, 'name')
+  const pagination = usePagination(sorted, 10, `${sortKey}|${sortDirection}`)
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -108,8 +116,8 @@ export default function Departments() {
            <table className='min-w-full divide-y divide-slate-200'>
              <thead className='bg-slate-50'>
                <tr>
-                 <th className='table-th'>Código</th>
-                 <th className='table-th'>Nombre</th>
+                  <SortableHeader label='Código' column='code' sortKey={sortKey} direction={sortDirection} onSort={toggleSort} />
+                  <SortableHeader label='Nombre' column='name' sortKey={sortKey} direction={sortDirection} onSort={toggleSort} />
                  <th className='table-th'>Oficina</th>
                  <th className='table-th'>Estado</th>
                  <th className='table-th'></th>
