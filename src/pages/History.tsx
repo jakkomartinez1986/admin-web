@@ -1,14 +1,15 @@
 import { useEffect, useState } from 'react'
-import { Download } from 'lucide-react'
+import { Download, Trash2 } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { PageHeader } from '@/components/PageHeader'
 import { Pagination } from '@/components/ui/Pagination'
+import { ConfirmDialog } from '@/components/ui/ConfirmDialog'
 import { usePagination } from '@/hooks/usePagination'
 import {
   validationStatusClass,
   validationStatusLabel,
 } from '@/lib/attendanceStatus'
-import type { AttendanceEvent, Company } from '@/types'
+import type { AttendanceEvent, Company, Role } from '@/types'
 import { formatDateTime } from '@/lib/utils'
 
 export default function History() {
@@ -16,8 +17,13 @@ export default function History() {
   const [companies, setCompanies] = useState<Company[]>([])
   const [status, setStatus] = useState('')
   const [companyId, setCompanyId] = useState('')
+  const [role, setRole] = useState<Role | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [message, setMessage] = useState<string | null>(null)
+  const [deleting, setDeleting] = useState<AttendanceEvent | null>(null)
+  const [deleteBusy, setDeleteBusy] = useState(false)
+  const [deleteError, setDeleteError] = useState<string | null>(null)
   const pagination = usePagination(events, 25, `${status}|${companyId}`)
 
   useEffect(() => {
@@ -26,6 +32,19 @@ export default function History() {
       .select('*')
       .order('name')
       .then(({ data }) => setCompanies((data as Company[]) ?? []))
+  }, [])
+
+  useEffect(() => {
+    void (async () => {
+      const { data } = await supabase.auth.getUser()
+      if (!data.user) return
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('role')
+        .eq('id', data.user.id)
+        .maybeSingle()
+      setRole((profile?.role as Role | undefined) ?? null)
+    })()
   }, [])
 
   useEffect(() => {
@@ -102,6 +121,31 @@ export default function History() {
     URL.revokeObjectURL(url)
   }
 
+  const canDelete = role === 'ADMINISTRADOR'
+
+  const confirmDelete = async () => {
+    if (!deleting) return
+    setDeleteBusy(true)
+    setDeleteError(null)
+    setMessage(null)
+
+    const { error: deleteErr } = await supabase
+      .from('attendance_events')
+      .delete()
+      .eq('id', deleting.id)
+
+    setDeleteBusy(false)
+
+    if (deleteErr) {
+      setDeleteError(deleteErr.message)
+      return
+    }
+
+    setEvents((current) => current.filter((ev) => ev.id !== deleting.id))
+    setDeleting(null)
+    setMessage('Evento eliminado del historial.')
+  }
+
   const selectedCompany = companies.find((company) => company.id === companyId)
 
   return (
@@ -116,6 +160,12 @@ export default function History() {
           </button>
         }
       />
+
+      {message && (
+        <div role="status" className="mb-4 rounded-lg bg-emerald-50 px-3 py-2 text-sm text-emerald-700">
+          {message}
+        </div>
+      )}
 
       <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-end">
         <div className="w-full sm:max-w-xs">
@@ -180,6 +230,7 @@ export default function History() {
                     <th className="table-th">Recepción servidor</th>
                     <th className="table-th">Estado</th>
                     <th className="table-th">Motivo</th>
+                    {canDelete && <th className="table-th w-16">Acciones</th>}
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100 bg-white">
@@ -212,6 +263,23 @@ export default function History() {
                           </span>
                         </td>
                         <td className="table-td text-xs text-slate-500">{reason || '—'}</td>
+                        {canDelete && (
+                          <td className="table-td">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setMessage(null)
+                                setDeleteError(null)
+                                setDeleting(ev)
+                              }}
+                              className="rounded-lg p-1.5 text-slate-400 hover:bg-red-50 hover:text-red-600"
+                              title="Eliminar evento"
+                              aria-label="Eliminar evento"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </button>
+                          </td>
+                        )}
                       </tr>
                     )
                   })}
@@ -232,6 +300,25 @@ export default function History() {
           </>
         )}
       </div>
+
+      <ConfirmDialog
+        open={deleting !== null}
+        title="Eliminar evento de asistencia"
+        busy={deleteBusy}
+        error={deleteError}
+        onConfirm={() => void confirmDelete()}
+        onClose={() => {
+          setDeleting(null)
+          setDeleteError(null)
+        }}
+        message={
+          <>
+            ¿Eliminar el evento <strong>{deleting?.event_type}</strong> del{' '}
+            <strong>{deleting ? formatDateTime(deleting.device_time) : ''}</strong>? Esta acción no
+            se puede deshacer y quedará registrada en la auditoría.
+          </>
+        }
+      />
     </div>
   )
 }
