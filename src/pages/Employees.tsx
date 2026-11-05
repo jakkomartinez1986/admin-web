@@ -159,6 +159,31 @@ export default function Employees() {
     void load()
   }, [load])
 
+  // Departamentos disponibles segun la oficina seleccionada. Sin oficina se muestran todos.
+  const departmentsForOffice = (officeId: string) =>
+    officeId ? departments.filter((d) => d.office_id === officeId) : departments
+
+  const handleCreateOfficeChange = (officeId: string) => {
+    const validDepartment = !createForm.department_id
+      || departments.some((d) => d.id === createForm.department_id && d.office_id === officeId)
+    setCreateForm({
+      ...createForm,
+      office_id: officeId,
+      department_id: validDepartment ? createForm.department_id : '',
+    })
+  }
+
+  const handleEditOfficeChange = (officeId: string) => {
+    if (!editForm) return
+    const validDepartment = !editForm.department_id
+      || departments.some((d) => d.id === editForm.department_id && d.office_id === officeId)
+    setEditForm({
+      ...editForm,
+      office_id: officeId,
+      department_id: validDepartment ? editForm.department_id : '',
+    })
+  }
+
   const handleCreate = async (e: FormEvent) => {
     e.preventDefault()
     setSaving(true)
@@ -989,7 +1014,7 @@ export default function Employees() {
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <div>
               <label className="label" htmlFor="e-office">Oficina</label>
-              <select id="e-office" className="input" value={createForm.office_id} onChange={(e) => setCreateForm({ ...createForm, office_id: e.target.value })}>
+              <select id="e-office" className="input" value={createForm.office_id} onChange={(e) => handleCreateOfficeChange(e.target.value)}>
                 <option value="">Sin asignar</option>
                 {offices.map((o) => (
                   <option key={o.id} value={o.id}>{o.name}</option>
@@ -999,11 +1024,14 @@ export default function Employees() {
             <div>
               <label className="label" htmlFor="e-dept">Departamento</label>
               <select id="e-dept" className="input" value={createForm.department_id} onChange={(e) => setCreateForm({ ...createForm, department_id: e.target.value })}>
-                <option value="">Sin asignar</option>
-                {departments.map((d) => (
+                <option value="">{createForm.office_id && departmentsForOffice(createForm.office_id).length === 0 ? 'La oficina no tiene departamentos' : 'Sin asignar'}</option>
+                {departmentsForOffice(createForm.office_id).map((d) => (
                   <option key={d.id} value={d.id}>{d.name}</option>
                 ))}
               </select>
+              {createForm.office_id && (
+                <p className="mt-1 text-xs text-slate-400">Solo se muestran los departamentos de la oficina seleccionada.</p>
+              )}
             </div>
           </div>
           <div>
@@ -1074,7 +1102,7 @@ export default function Employees() {
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <div>
                 <label className="label" htmlFor="ed-office">Oficina</label>
-                <select id="ed-office" className="input" value={editForm.office_id} onChange={(e) => setEditForm({ ...editForm, office_id: e.target.value })}>
+                <select id="ed-office" className="input" value={editForm.office_id} onChange={(e) => handleEditOfficeChange(e.target.value)}>
                   <option value="">Sin asignar</option>
                   {offices.map((o) => (
                     <option key={o.id} value={o.id}>{o.name}</option>
@@ -1084,11 +1112,14 @@ export default function Employees() {
               <div>
                 <label className="label" htmlFor="ed-dept">Departamento</label>
                 <select id="ed-dept" className="input" value={editForm.department_id} onChange={(e) => setEditForm({ ...editForm, department_id: e.target.value })}>
-                  <option value="">Sin asignar</option>
-                  {departments.map((d) => (
+                  <option value="">{editForm.office_id && departmentsForOffice(editForm.office_id).length === 0 ? 'La oficina no tiene departamentos' : 'Sin asignar'}</option>
+                  {departmentsForOffice(editForm.office_id).map((d) => (
                     <option key={d.id} value={d.id}>{d.name}</option>
                   ))}
                 </select>
+                {editForm.office_id && (
+                  <p className="mt-1 text-xs text-slate-400">Solo se muestran los departamentos de la oficina seleccionada.</p>
+                )}
               </div>
             </div>
             <div>
